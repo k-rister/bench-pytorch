@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+# -*- mode: python; indent-tabs-mode: nil; python-indent-level: 4 -*-
+# vim: autoindent tabstop=4 shiftwidth=4 expandtab softtabstop=4 filetype=python
+
+import sys
+import os
+import lzma
+import re
+import copy
+import math
+import json
+import yaml
+import argparse
+import glob
+from datetime import datetime
+from pathlib import Path
+
+TOOLBOX_HOME = os.environ.get('TOOLBOX_HOME')
+if TOOLBOX_HOME is None:
+    print("This script requires libraries that are provided by the toolbox project.")
+    print("Toolbox can be acquired from https://github.com/perftool-incubator/toolbox and")
+    print("then use 'export TOOLBOX_HOME=/path/to/toolbox' so that it can be located.")
+    exit(1)
+else:
+    p = Path(TOOLBOX_HOME) / 'python'
+    if not p.exists() or not p.is_dir():
+        print("ERROR: <TOOLBOX_HOME>/python ('%s') does not exist!" % (p))
+        exit(2)
+    sys.path.append(str(p))
+from toolbox.metrics import log_sample
+from toolbox.metrics import finish_samples
+
+params = {}
+
+class t_global(object):
+     args = None
+
+def process_options():
+    parser = argparse.ArgumentParser(description = 'Post process raw benchmark data into Common Data Model output')
+
+    parser.add_argument('--model',
+                        dest = 'model',
+                        help = '',
+                        default = "llama"
+                        )
+
+    t_global.args, unknown = parser.parse_known_args()
+
+    return()
+
+def main():
+    process_options()
+    if t_global.args.workflow == '':
+        print('workflow was not defined, exiting')
+        return(1)
+
+    # In any benchmark post-process script, the metrics generated need to be attributed to a
+    # time-period (AKA benchmark-phase).  The period which is used to report and offical
+    # result for the benchmark is the 'measurement' period.  Other periods thay may exist
+    # could be "warm-up", "prep", etc.
+
+    iter_sample = {
+        'primary-period': "measurement",
+        'benchmark': "pytorch",
+        'periods': [],
+        'rickshaw-bench-metric': { 'schema': { 'version': '2021.04.12' } }
+        }
+
+    metric_files = []
+
+    first_ts = None
+    last_ts = None
+    period = { 'name': 'phase' + str(phase), 'metric-files': [] }
+    file_id = 'phase' + str(phase)
+    desc = {'source' : 'pytorch', 'class': 'throughput'}
+    names = {}
+    desc['type'] = 'train-samples-sec';
+    filename = 'e2e/phase' + str(phase) + '/checkpoints/training_params_and_metrics_global0.jsonl.xz'
+    print('Opening ' + filename)
+    this_period_first_ts = None
+    this_period_last_ts = None
+    with open(filename, 'rt') as file:
+        for line in file:
+            d = json.loads(line)
+            # file contents to parse (per line):
+            #{"epoch": 0, "step": 1, "rank": 0,
+            # "loss": 0.18146394193172455,
+            # "overall_throughput": 3.5244029279710176,
+            # "lr": 0.0, "cuda_mem_allocated": 14.08400821685791,
+            # "cuda_malloc_retries": 0,
+            # "num_loss_counted_tokens": 4940, "batch_size": 14,
+            # "total_loss": 0.4069821238517761, "gradnorm": null,
+            # "weight_norm": 557.9681396484375,
+            # "timestamp": "2024-07-18T22:46:41.628932"}
+            if 'epoch' in d.keys():
+                dt = datetime.strptime(d['timestamp'], '%Y-%m-%dT%X.%f')
+                ts = math.floor(dt.timestamp() * 1000)
+                if this_period_first_ts == None:
+                    this_period_first_ts = ts
+                if first_ts == None:
+                    first_ts = ts
+                sample = {'end': ts, 'value': d['overall_throughput']}
+                log_sample(file_id, desc, names, sample)
+                last_ts = ts
+                this_period_last_ts = ts
+    metric_file_name = finish_samples()
+    period['metric-files'].append(metric_file_name)
+    iter_sample['periods'].append(period)
+
+    # Now create the primary metric and the primary-period
+    iter_sample['primary-metric'] = 'actual-train-seconds'
+    period = { 'name': 'measurement', 'metric-files': [] }
+    file_id = 'measurement'
+    desc = {'source' : 'pytorch', 'class': 'count', 'type': 'actual-train-seconds'}
+    names = {}
+    sample = {'begin': first_ts, 'end': last_ts, 'value': (last_ts - first_ts) / 1000}
+    log_sample(file_id, desc, names, sample)
+    metric_file_name = finish_samples()
+    period['metric-files'].append(metric_file_name)
+    iter_sample['periods'].append(period)
+
+
+    metric_file_name = finish_samples()
+    period['metric-files'].append(metric_file_name)
+    iter_sample['periods'].append(period)
+
+    f = open('post-process-data.json', 'w')
+    f.write(json.dumps(iter_sample))
+    f.close
+    return(0)
+
+
+if __name__ == "__main__":
+    exit(main())
