@@ -1,0 +1,55 @@
+#!/bin/bash
+# -*- mode: sh; indent-tabs-mode: nil; sh-basic-offset: 4 -*-
+# vim: autoindent tabstop=4 shiftwidth=4 expandtab softtabstop=4 filetype=bash
+exec >pytorch-client-stderrout.txt
+exec 2>&1
+
+. /usr/bin/pytorch-base || (echo "/usr/bin/pytorch-base not found"; exit 1)
+
+model="llama"
+
+pytorch --version | awk '{print $3}' >pytorch-version.txt
+
+pwd=`/bin/pwd`
+pushd /opt/app-root/lib/python3.11/site-packages
+find . -name METADATA | cpio -pdumv $pwd/instructlab-site-packages-metadata
+popd
+
+longopts=""
+longopts+=" model:"
+
+opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
+if [ $? -ne 0 ]; then
+    printf -- "\tUnrecognized option specified\n\n"
+    exit 1
+fi
+eval set -- "$opts";
+while true; do
+    arg=$1; shift
+    val=$1; shift
+    case "$arg" in
+        --model)
+            model="$val"
+            ;;
+        --)
+            break
+            ;;
+        *)
+            echo "Invalid option: [$arg]"
+            exit 1
+    esac
+done
+
+
+echo "model: $workflow"
+git clone https://github.com/pytorch/benchmark.git
+pushd benchmark
+pip uninstall -y nvidia-ml-py
+pip install pynvml
+python run_benchmark.py --help
+date +%s >begin.txt
+python run_benchmark.py test_bench -m $model >run_benchmark_output.txt
+date +%s >end.txt
+rc=$?
+popd
+exit $rc

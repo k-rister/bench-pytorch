@@ -1,0 +1,27 @@
+{
+  "rickshaw-benchmark": {
+    "schema": { "version": "2020.05.18" }
+  },
+  "benchmark": "pytorch",
+  "controller" : {
+    "post-script" : "%bench-dir%/pytorch-post-process"
+  },
+  "client" : {
+    "files-from-controller": [
+      {
+          "src": "%bench-dir%/pytorch-get-runtime",
+          "dest": "/usr/bin/"
+      },
+      {
+          "src": "%bench-dir%/pytorch-base",
+          "dest": "/usr/bin/"
+      },
+      {
+          "src": "%bench-dir%/pytorch-client",
+          "dest": "/usr/bin/"
+      }
+    ],
+    "start": "pytorch-client",
+    "runtime": "pytorch-get-runtime"
+  }
+}
