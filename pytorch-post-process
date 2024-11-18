@@ -50,9 +50,6 @@ def process_options():
 
 def main():
     process_options()
-    if t_global.args.workflow == '':
-        print('workflow was not defined, exiting')
-        return(1)
 
     # In any benchmark post-process script, the metrics generated need to be attributed to a
     # time-period (AKA benchmark-phase).  The period which is used to report and offical
@@ -68,66 +65,51 @@ def main():
 
     metric_files = []
 
-    first_ts = None
-    last_ts = None
-    period = { 'name': 'phase' + str(phase), 'metric-files': [] }
-    file_id = 'phase' + str(phase)
-    desc = {'source' : 'pytorch', 'class': 'throughput'}
-    names = {}
-    desc['type'] = 'train-samples-sec';
-    filename = 'e2e/phase' + str(phase) + '/checkpoints/training_params_and_metrics_global0.jsonl.xz'
-    print('Opening ' + filename)
-    this_period_first_ts = None
-    this_period_last_ts = None
-    with open(filename, 'rt') as file:
-        for line in file:
-            d = json.loads(line)
-            # file contents to parse (per line):
-            #{"epoch": 0, "step": 1, "rank": 0,
-            # "loss": 0.18146394193172455,
-            # "overall_throughput": 3.5244029279710176,
-            # "lr": 0.0, "cuda_mem_allocated": 14.08400821685791,
-            # "cuda_malloc_retries": 0,
-            # "num_loss_counted_tokens": 4940, "batch_size": 14,
-            # "total_loss": 0.4069821238517761, "gradnorm": null,
-            # "weight_norm": 557.9681396484375,
-            # "timestamp": "2024-07-18T22:46:41.628932"}
-            if 'epoch' in d.keys():
-                dt = datetime.strptime(d['timestamp'], '%Y-%m-%dT%X.%f')
-                ts = math.floor(dt.timestamp() * 1000)
-                if this_period_first_ts == None:
-                    this_period_first_ts = ts
-                if first_ts == None:
-                    first_ts = ts
-                sample = {'end': ts, 'value': d['overall_throughput']}
-                log_sample(file_id, desc, names, sample)
-                last_ts = ts
-                this_period_last_ts = ts
-    metric_file_name = finish_samples()
-    period['metric-files'].append(metric_file_name)
-    iter_sample['periods'].append(period)
-
-    # Now create the primary metric and the primary-period
-    iter_sample['primary-metric'] = 'actual-train-seconds'
-    period = { 'name': 'measurement', 'metric-files': [] }
-    file_id = 'measurement'
-    desc = {'source' : 'pytorch', 'class': 'count', 'type': 'actual-train-seconds'}
-    names = {}
-    sample = {'begin': first_ts, 'end': last_ts, 'value': (last_ts - first_ts) / 1000}
-    log_sample(file_id, desc, names, sample)
-    metric_file_name = finish_samples()
-    period['metric-files'].append(metric_file_name)
-    iter_sample['periods'].append(period)
-
-
-    metric_file_name = finish_samples()
-    period['metric-files'].append(metric_file_name)
-    iter_sample['periods'].append(period)
-
-    f = open('post-process-data.json', 'w')
-    f.write(json.dumps(iter_sample))
+    f = open("benchmark/begin.txt","r")
+    begin = int(math.floor(1000*float(f.readline())))
+    begin
     f.close
-    return(0)
+    f = open("benchmark/end.txt","r")
+    end = int(math.floor(1000*float(f.readline())))
+    f.close
+
+    with open("benchmark/run_benchmark_output.txt", "r") as f:
+        initial_data = f.readline()
+        d = json.loads(f.read())
+
+        # example file:
+        # Running TorchBenchModelConfig(name='llama', test='eval', device='cuda', batch_size=None, extra_args=[], extra_env=None, output_dir=None) ... [done]
+        # {
+        # "name": "test_bench",
+        # "environ": {
+        #     "pytorch_git_version": "2d9a7eec9ccc362e00d2fd2b4b845d3f90d955aa",
+        #     "pytorch_version": "2.3.1",
+        #     "device": "NVIDIA L40S"
+        # },
+        # "metrics": {
+        #     "model=llama, test=eval, device=cuda, bs=None, extra_args=[], metric=latencies": 4.101454,
+        #     "model=llama, test=eval, device=cuda, bs=None, extra_args=[], metric=cpu_peak_mem": 0.8515625,
+        #     "model=llama, test=eval, device=cuda, bs=None, extra_args=[], metric=gpu_peak_mem": 3.8720703125
+        #  }
+        # }
+
+        print(d)
+
+        # Now create the primary metric and the primary-period
+        iter_sample['primary-metric'] = 'elapsed-time-milliseconds'
+        period = { 'name': 'measurement', 'metric-files': [] }
+        file_id = 'measurement'
+        desc = {'source' : 'pytorch', 'class': 'count', 'type': 'elapsed-time-milliseconds'}
+        names = {}
+        sample = {'begin': begin, 'end': end, 'value': end - begin}
+        log_sample(file_id, desc, names, sample)
+
+        metric_file_name = finish_samples()
+        period['metric-files'].append(metric_file_name)
+        iter_sample['periods'].append(period)
+        f = open('post-process-data.json', 'w')
+        f.write(json.dumps(iter_sample))
+        f.close
 
 
 if __name__ == "__main__":
