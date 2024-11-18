@@ -8,8 +8,6 @@ exec 2>&1
 
 model="llama"
 
-pytorch --version | awk '{print $3}' >pytorch-version.txt
-
 pwd=`/bin/pwd`
 pushd /opt/app-root/lib/python3.11/site-packages
 find . -name METADATA | cpio -pdumv $pwd/instructlab-site-packages-metadata
@@ -46,10 +44,12 @@ git clone https://github.com/pytorch/benchmark.git
 pushd benchmark
 pip uninstall -y nvidia-ml-py
 pip install pynvml
-python run_benchmark.py --help
-date +%s >begin.txt
-python run_benchmark.py test_bench -m $model >run_benchmark_output.txt
-date +%s >end.txt
+python run_benchmark.py test_bench --help
+bench_cmd="python run_benchmark.py test_bench -m $model"
+echo "About to run: $bench_cmd"
+date +%s.%N >begin.txt
+$bench_cmd >run_benchmark_output.txt
+date +%s.%N >end.txt
 rc=$?
 popd
 exit $rc
