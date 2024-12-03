@@ -103,10 +103,12 @@ def main():
         log_sample(file_id, desc, names, sample)
 
         for key in d['metrics'].keys():
-            if (re.search("metric=latencies$", key)):
+            if (re.search("metric=latencies$", key) and re.findall("[0-9]+(?:[.][0-9]+)?", str(d['metrics'][key])) ):
                 desc = {'source' : 'pytorch', 'class': 'count', 'type': 'latency-milliseconds'}
                 sample = {'begin': begin, 'end': end, 'value': d['metrics'][key]}
                 log_sample(file_id, desc, names, sample)
+            else:
+                print("skipping: " + key)
 
         metric_file_name = finish_samples()
         period['metric-files'].append(metric_file_name)
