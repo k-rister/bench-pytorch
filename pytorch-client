@@ -8,11 +8,6 @@ exec 2>&1
 
 model="llama"
 
-pwd=`/bin/pwd`
-pushd /opt/app-root/lib/python3.11/site-packages
-find . -name METADATA | cpio -pdumv $pwd/instructlab-site-packages-metadata
-popd
-
 longopts=""
 longopts+=" model:"
 
@@ -43,13 +38,19 @@ echo "model: $workflow"
 git clone https://github.com/pytorch/benchmark.git
 pushd benchmark
 pip uninstall -y nvidia-ml-py
-pip install pynvml
+pip install --force-reinstall -v pynvml==11.5.3
+
+pwd=`/bin/pwd`
+pushd /opt/app-root/lib/python3.11/site-packages
+find . -name METADATA | cpio -pdumv $pwd/instructlab-site-packages-metadata
+popd
+
 python run_benchmark.py test_bench --help
 bench_cmd="python run_benchmark.py test_bench -m $model"
 echo "About to run: $bench_cmd"
 date +%s.%N >begin.txt
 $bench_cmd >run_benchmark_output.txt
-date +%s.%N >end.txt
 rc=$?
+date +%s.%N >end.txt
 popd
 exit $rc
