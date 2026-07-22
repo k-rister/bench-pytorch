@@ -34,14 +34,14 @@ while true; do
 done
 
 
-echo "model: $workflow"
+echo "model: $model"
 git clone https://github.com/pytorch/benchmark.git
 pushd benchmark
 pip uninstall -y nvidia-ml-py
 pip install --force-reinstall -v pynvml==11.5.3
 
 pwd=`/bin/pwd`
-pushd /opt/app-root/lib/python3.11/site-packages
+pushd /opt/app-root/lib/python$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/site-packages
 find . -name METADATA | cpio -pdumv $pwd/instructlab-site-packages-metadata
 popd
 
