@@ -4,15 +4,9 @@
 
 import sys
 import os
-import lzma
 import re
-import copy
 import math
 import json
-import yaml
-import argparse
-import glob
-from datetime import datetime
 from pathlib import Path
 
 TOOLBOX_HOME = os.environ.get('TOOLBOX_HOME')
@@ -36,6 +30,7 @@ class t_global(object):
      args = None
 
 def process_options():
+    import argparse
     parser = argparse.ArgumentParser(description = 'Post process raw benchmark data into Common Data Model output')
 
     parser.add_argument('--model',
@@ -51,10 +46,7 @@ def process_options():
 def main():
     process_options()
 
-    # In any benchmark post-process script, the metrics generated need to be attributed to a
-    # time-period (AKA benchmark-phase).  The period which is used to report and offical
-    # result for the benchmark is the 'measurement' period.  Other periods thay may exist
-    # could be "warm-up", "prep", etc.
+    # The period used to report the official result is the 'measurement' period.
 
     iter_sample = {
         'primary-period': "measurement",
@@ -65,13 +57,10 @@ def main():
 
     metric_files = []
 
-    f = open("benchmark/begin.txt","r")
-    begin = int(math.floor(1000*float(f.readline())))
-    begin
-    f.close
-    f = open("benchmark/end.txt","r")
-    end = int(math.floor(1000*float(f.readline())))
-    f.close
+    with open("benchmark/begin.txt", "r") as f:
+        begin = int(math.floor(1000 * float(f.readline())))
+    with open("benchmark/end.txt", "r") as f:
+        end = int(math.floor(1000 * float(f.readline())))
 
     with open("benchmark/run_benchmark_output.txt", "r") as f:
         initial_data = f.readline()
@@ -93,7 +82,6 @@ def main():
         #  }
         # }
 
-        # Now create the primary metric and the primary-period
         iter_sample['primary-metric'] = 'latency-milliseconds'
         period = { 'name': 'measurement', 'metric-files': [] }
         file_id = 'measurement'
@@ -113,9 +101,8 @@ def main():
         metric_file_name = finish_samples()
         period['metric-files'].append(metric_file_name)
         iter_sample['periods'].append(period)
-        f = open('postprocess/post-process-data.json', 'w')
-        f.write(json.dumps(iter_sample))
-        f.close
+        with open('postprocess/post-process-data.json', 'w') as f:
+            f.write(json.dumps(iter_sample))
 
 
 if __name__ == "__main__":
